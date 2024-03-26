@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Chess</title>
+    </head>
+    <body>
+        <h1 id="header">CHESS</h1>
+        <form id="play" method="POST">
+            <span>Enter name here:</span>
+            <input type="text" id="nameInput" name="name" autocomplete="off">
+            <span id="error"></span>
+        </form>
+        <button id="find">Find a game</button>
+        <button id="solo">Play Offline</button>
+    </body>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        (() => {
+
+        const socket = io();
+
+        let findButton = document.getElementById('find');
+        let nameInput = document.getElementById('nameInput');
+        let error = document.getElementById('error');
+        let soloButton = document.getElementById('solo');
+
+        nameInput.addEventListener('input', () => {
+            error.innerHTML = '';
+        });
+        findButton.addEventListener('click', () => {
+            socket.emit('name', nameInput.value);
+        });
+        soloButton.addEventListener('click', () => {
+            window.location = '/play';
+        });
+
+
+        socket.on('nameError', (info) => {
+            error.innerHTML = info;
+        });
+        socket.on('match', (players) => {
+            if(players.p1.id == socket.id || players.p2.id == socket.id) {
+                window.location = `/play/${players.room}`;
+            }
+        });
+
+
+        })();
+    </script>
+
+    <style>
+        html {
+            font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+        }
+
+        #header {
+            font-size: 160px;
+            margin: 10px;
+        }
+    </style>
+</html>
