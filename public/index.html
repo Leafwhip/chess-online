@@ -8,57 +8,25 @@
     </head>
     <body>
         <h1 id="header">CHESS</h1>
-        <form id="play" method="POST">
-            <span>Enter name here:</span>
-            <input type="text" id="nameInput" name="name" autocomplete="off">
-            <span id="error"></span>
-        </form>
+        <span>Enter name here:</span>
+        <input type="text" id="nameInput" name="name" autocomplete="off">
+        <span id="error"></span>
+        <br>
         <button id="find">Find a game</button>
         <button id="solo">Play Offline</button>
-    </body>
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        (() => {
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="index.js"></script>
 
-        const socket = io();
-
-        let findButton = document.getElementById('find');
-        let nameInput = document.getElementById('nameInput');
-        let error = document.getElementById('error');
-        let soloButton = document.getElementById('solo');
-
-        nameInput.addEventListener('input', () => {
-            error.innerHTML = '';
-        });
-        findButton.addEventListener('click', () => {
-            socket.emit('name', nameInput.value);
-        });
-        soloButton.addEventListener('click', () => {
-            window.location = '/play';
-        });
-
-
-        socket.on('nameError', (info) => {
-            error.innerHTML = info;
-        });
-        socket.on('match', (players) => {
-            if(players.p1.id == socket.id || players.p2.id == socket.id) {
-                window.location = `/play/${players.room}`;
+        <style>
+            html {
+                font-family: 'Comic Sans MS', 'Comic Sans', cursive;
             }
-        });
 
-
-        })();
-    </script>
-
-    <style>
-        html {
-            font-family: 'Comic Sans MS', 'Comic Sans', cursive;
-        }
-
-        #header {
-            font-size: 160px;
-            margin: 10px;
-        }
-    </style>
+            #header {
+                font-size: 160px;
+                margin: 10px;
+            }
+        </style>
+    </body>
+    
 </html>

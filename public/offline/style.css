@@ -1,0 +1,64 @@
+body {
+    user-select: none;
+    height: 95vh;
+    width: 95vw;
+}
+
+#board {
+    background: lightgray;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+#board-container {
+    float: left;
+}
+
+#everything-container {
+    display: inline-block;
+}
+
+.square {
+    height: 64px;
+    width: 64px;
+}
+
+.white.selected {
+    background: khaki;
+}
+
+.white.highlighted {
+    background: lightcoral;
+}
+
+.white {
+    background: burlywood;
+}
+
+.black.selected {
+    background: gold;
+}
+
+.black.highlighted {
+    background: tomato;
+}
+
+.black {
+    background: saddlebrown;
+}
+
+.piece-img {
+    max-width: 100%;
+    max-height: 100%;
+    pointer-events: none;
+}
+
+#sidebar {
+    display: block;
+}
+ 
+#none {
+    background: lightcoral;
+    background: indianred;
+    background: tomato;
+}
