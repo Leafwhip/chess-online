@@ -1,3 +1,5 @@
+const gameResult = document.querySelector('#result');
+
 const TAKE_KING = false;
 const FLIP_BOARD = false;
 const HIGHLIGHT_MOVES = true;
@@ -135,6 +137,7 @@ const Game = {
     },
 
     getLegalMoves: (test) => {
+        legalMoves = [];
         let moves = [];
         for(let i = 0; i < 64; i++) {
             let piece = board[i];
@@ -148,9 +151,25 @@ const Game = {
         
         possibleMoves = moves;
         if(!test) {
-            moves = moves.filter(a => Game.testMove(...a));
-            moves = moves.map(a => `${a[0]}-${a[1]}`);
-            legalMoves = moves;
+            for(let i = 0; i < moves.length; i++) {
+                let move = moves[i];
+                if(board[move[0]]?.type == 'king' && Math.abs(move[0] - move[1]) == 2) {
+                    if(!Game.testMove(move[0], move[0])) {
+                        continue;
+                    }
+                    if(move[1] == move[0] + 2 && !Game.checkLegality(move[0], move[0] + 1)) {
+                        continue;
+                    }
+                    if(move[1] == move[0] - 2 && !Game.checkLegality(move[0], move[0] - 1)) {
+                        continue;
+                    }
+                }
+                let legal = Game.testMove(...move);
+                if(legal) {
+                    move = `${move[0]}-${move[1]}`;
+                    legalMoves.push(move);
+                }
+            }
         }
     },
 
@@ -250,7 +269,9 @@ const Game = {
                     }
                     askForPiece();
                 }
-                askForPiece();
+                if(!test) {
+                    askForPiece();
+                }
             }
         }
 
@@ -270,10 +291,10 @@ const Game = {
         if(!test) {
             let status = Game.evaluate();
             if(status == 1) {
-                console.log(`${turn == 'white' ? 'black' : 'white'} wins!`);
+                gameResult.innerHTML = `${turn == 'white' ? 'black' : 'white'} wins!`;
             }
             if(status == 2) {
-                console.log('It\'s a draw!');
+                gameResult.innerHTML = 'It\'s a draw!';
             }
             Board.updateBoardPieces();
         }
@@ -329,6 +350,9 @@ const Game = {
         // checkmate/stalemate
         if(legalMoves.length == 0) {
             let kingPos = board.findIndex(a => a?.type == 'king' && a?.color == turn);
+            if(kingPos == -1) {
+                return 1;
+            }
             if(Game.testMove(kingPos, kingPos)) {
                 return 2;
             }

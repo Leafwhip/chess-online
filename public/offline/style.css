@@ -1,3 +1,7 @@
+html {
+    font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+}
+
 body {
     user-select: none;
     height: 95vh;
@@ -16,6 +20,10 @@ body {
 
 #everything-container {
     display: inline-block;
+}
+
+#result {
+    font-size: 24px;
 }
 
 .square {

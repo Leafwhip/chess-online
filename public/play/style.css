@@ -1,3 +1,7 @@
+html {
+    font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+}
+
 body {
     user-select: none;
     height: 95vh;
@@ -54,7 +58,21 @@ body {
 }
 
 #sidebar {
+    display: inline-block;
+}
+
+#sidebar > * {
     display: block;
+}
+
+#you, #opponent, #you-time, #opponent-time, #result {
+    font-size: 36px;
+    font-weight: bolder;
+}
+
+#you-info > *, #opponent-info > * {
+    display: inline;
+    margin-right: 50px;
 }
  
 #none {

@@ -1,16 +1,12 @@
 const express = require('express');
 const app = express();
 
-const path = require('path');
 const http = require('http');
 const {Server} = require('socket.io');
 const server = http.createServer(app);
 const io = new Server(server);
 
 app.get('/', (req, res) => {
-    let cookie = generateRandomString();
-    res.set('Set-Cookie', 'id=' + cookie);
-    addCookie(cookie);
     res.sendFile(__dirname + '/public/index.html');
 });
 
@@ -21,11 +17,25 @@ app.get('/play/:id', (req, res) => {
     if(!games[roomId]) {
         res.redirect('/');
     }
-    res.sendFile(__dirname + '/public/play/online.html');
+    res.sendFile(__dirname + '/public/play/index.html');
 })
 
 const validIds = new Set();
-const queue = [];
+const queue = {
+    '30|0': [],
+    '1|1': [],
+    '3|2': [],
+    '10|5': [],
+    'Unlimited': [],
+};
+const timeControls = {
+    '30|0': [30, 0],
+    '1|1': [60, 1],
+    '3|2': [180, 2],
+    '10|5': [600, 5],
+    'Unlimited': [Infinity, 0]
+}
+const queuedIds = new Set();
 const games = {};
 
 function generateRandomString() {
@@ -36,25 +46,40 @@ function generateRandomString() {
     }
     return str;
 }
-
-function addCookie(cookie) {
-    if(validIds.has(cookie)) {
-        return false;
-    }
-    validIds.add(cookie);
-    return true;
-}
   
 io.on('connection', (socket) => {
 
-    console.log('a user connected with id', socket.id);
+    console.log('a user connected');
 
     socket.on('disconnect', () => {
-        console.log('hi')
-    })
+        console.log('a user disconnected');
+        queuedIds.delete(socket.playerId);
+    });
+
+    socket.on('requestId', () => {
+        let id = generateRandomString();
+        while(validIds.has(id)) {
+            id = generateRandomString();
+        }
+        validIds.add(id);
+        socket.playerId = id;
+        socket.join(id);
+        socket.emit('id', id);
+    });
+
+    socket.on('setId', (id) => {
+        socket.playerId = id;
+        socket.join(id);
+    });
     
-    socket.on('name', (username) => {
-        if(queue.find(obj => obj.id == socket.id)) {
+    socket.on('name', (username, timeControl, roomCode=null) => {
+        if(!validIds.has(socket.playerId)) {
+            return;
+        }
+        if(!queue[timeControl]) {
+            return;
+        }
+        if(queuedIds.has(socket.playerId)) {
             return;
         }
 
@@ -71,65 +96,148 @@ io.on('connection', (socket) => {
             socket.emit('nameError', 'Name cannot exceed 32 characters in length');
             return;
         }
-        
-        queue.push({name: username, id: socket.id});
+        if(roomCode && games[roomCode]) {
+            socket.emit('nameError', 'That room code has already been taken');
+            return;
+        }
+        let times = timeControls[timeControl];
+        let player = {name: username, id: socket.playerId, color: '', time: times[0], bonus: times[1]};
+        let chosenQueue;
+        if(roomCode) {
+            if(!queue[roomCode]) {
+                queue[roomCode] = [];
+            }
+            if(queue[roomCode].length > 0) {
+                player.time = queue[roomCode][0].time;
+                player.bonus = queue[roomCode][0].bonus;
+            }
+            queue[roomCode].push(player);
+            chosenQueue = queue[roomCode];
+        }
+        else {
+            queue[timeControl].push(player);
+            chosenQueue = queue[timeControl];
+        }
+        queuedIds.add(socket.playerId);
         socket.emit('queued');
 
-        if(queue.length >= 2) {
-            let [p1, p2] = queue.splice(0, 2);
-            let room = Math.floor(Math.random() * 1000000000);
-            games[room] = {
+        if(chosenQueue.length >= 2) {
+            let [p1, p2] = chosenQueue.splice(0, 2);
+            p1.color = 'white';
+            p2.color = 'black';
+            let roomId = roomCode;
+            if(!roomCode) {
+                roomId = Math.floor(Math.random() * 1000000000) + '';
+            }
+            games[roomId] = {
                 players: [p1, p2],
-                game: new Game('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+                game: new Game('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'),
+                gameOver: false
             };
+            if(p1.time != Infinity) {
+                setInterval(() => {
+                    if(games[roomId].game.gameOver) {
+                        return;
+                    }
+                    let player = games[roomId].players.find(a => a.color == games[roomId].game.turn);
+                    player.time--;
+                    if(player.time <= 0) {
+                        if(player.color == 'black') {
+                            io.to(roomId).emit('gameEnd', 'White wins!');
+                        }
+                        else if(player.color == 'white') {
+                            io.to(roomId).emit('gameEnd', 'Black wins!');
+                        }
+                        games[roomId].game.gameOver = true;
+                    }
+                    io.to(roomId).emit('time', games[roomId].players);
+                }, 1000);
+            }
             console.log('Match created');
             io.emit('match', {
                 players: [p1, p2],
-                room: room
+                room: roomId
             });
         }
     });
 
     socket.on('ready', (pathname) => {
-        if(!pathname || !games[pathname[0]]) {
+        if(!games[pathname]) {
             return;
         }
-        let roomId = pathname[0];
+        let roomId = pathname;
         socket.join(roomId);
         let board = games[roomId].game.board;
-        socket.emit('loadPos', board);
+        let players = games[roomId].players;
+        socket.emit('update', board);
+        socket.emit('info', players);
     });
 
     socket.on('clickoff', (pathname) => {
-        if(!pathname || !games[pathname[0]]) {
+        if(!games[pathname]) {
             return;
         }
-        let roomId = pathname[0];
+        let roomId = pathname;
         let game = games[roomId].game;
-        let player = games[roomId].players.findIndex(a => a == socket.id);
-        if(player == -1) {
+        let playerIdx = games[roomId].players.findIndex(a => a.id == socket.playerId);
+        if(playerIdx == -1) {
             return;
         }
-        game.squareSelected[player] = null;
+        game.squareSelected[playerIdx] = null;
     });
 
-    socket.on('select', (pathname, pos) => {
-        if(!pathname || !games[pathname[0]]) {
+    socket.on('select', async (pathname, pos) => {
+        if(!games[pathname]) {
             return;
         }
-        let roomId = pathname[0];
+        let roomId = pathname;
         let game = games[roomId].game;
-        let player = games[roomId].players.findIndex(a => a == socket.id);
-        if(player == -1) {
+        if(game.gameOver) {
             return;
         }
-        let list = game.selectSquare(pos, player);
+        let player = games[roomId].players.find(a => a.id == socket.playerId);
+        if(!player) {
+            return;
+        }
+        let [result, list] = await game.selectSquare(pos, player);
+        if(result) {
+            player.time += player.bonus;
+            if(game.status) {
+                if(game.status == 1) {
+                    io.to(roomId).emit('gameEnd', 'White wins!');
+                }
+                else if(game.status == 2) {
+                    io.to(roomId).emit('gameEnd', 'Black wins!');
+                }
+                else if(game.status == 3) {
+                    io.to(roomId).emit('gameEnd', 'It\'s a draw!');
+                }
+                game.gameOver = true;
+                // delete games[pathname];
+            }
+            io.to(roomId).emit('time', games[roomId].players);
+            io.to(roomId).emit('update', game.board);
+        }
         socket.emit('highlight', list);
     });
 
 });
 
-
+async function askForPromotion(player) {
+    return new Promise((resolve, reject) => {
+        io.timeout(10000).to(player.id).emit('ask', (err, result) => {
+            if(err) {
+                reject();
+            }
+            else {
+                if(['queen', 'rook', 'bishop', 'knight'].includes(result[0])) {
+                    resolve(result[0]);
+                }
+                resolve('queen');
+            }
+        });
+    });
+}
 
 class Piece {
     constructor(color, pos) {
@@ -162,10 +270,10 @@ class Pawn extends Piece {
                 }
             }
 
-            if(game.board[this.pos - 9] && game.board[this.pos - 9].color != this.color) {
+            if(game.board[this.pos - 9] && game.board[this.pos - 9].color != this.color && this.pos % 8 != 0) {
                 moves.push(this.pos - 9);
             }
-            if(game.board[this.pos - 7] && game.board[this.pos - 7].color != this.color) {
+            if(game.board[this.pos - 7] && game.board[this.pos - 7].color != this.color && this.pos % 8 != 7) {
                 moves.push(this.pos - 7);
             }
 
@@ -185,10 +293,10 @@ class Pawn extends Piece {
                 }
             }
 
-            if(game.board[this.pos + 9] && game.board[this.pos + 9].color != this.color) {
+            if(game.board[this.pos + 9] && game.board[this.pos + 9].color != this.color && this.pos % 8 != 7) {
                 moves.push(this.pos + 9);
             }
-            if(game.board[this.pos + 7] && game.board[this.pos + 7].color != this.color) {
+            if(game.board[this.pos + 7] && game.board[this.pos + 7].color != this.color && this.pos % 8 != 0) {
                 moves.push(this.pos + 7);
             }
 
@@ -316,8 +424,6 @@ class King extends Piece {
 class Game {
     constructor(fen=null) {
         this.board = Array(64).fill(null);
-        // useless
-        this.boardSimple = Array(64).fill(null);
         this.turn = 'white';
         this.castling = [1, 1, 1, 1];
         this.ep = NaN;
@@ -328,25 +434,15 @@ class Game {
         this.legalMoves = [];
         this.posHistory = [];
         this.stateHistory = [];
-        this.TAKE_KING = false;
         this.vectorMap = [-8, 1, 8, -1, -7, 9, 7, -9];
         this.distanceMap = Array(64);
+        this.TAKE_KING = false;
+        this.status = 0;
 
         this.loadDistancesFromEdge();
 
         if(fen) {
             this.loadPositionFromFEN(fen);
-        }
-    }
-
-    simplifyBoard = () => {
-        for(let i = 0; i < this.board.length; i++) {
-            if(this.board[i]) {
-                this.boardSimple[i] = {
-                    type: this.board[i].type,
-                    color: this.board[i].color
-                }
-            }
         }
     }
 
@@ -490,36 +586,52 @@ class Game {
         
 
         this.getLegalMoves(false);
-        this.simplifyBoard();
     }
 
-    // return a boolean for if the action results in a move
-    selectSquare = (pos, player) => {
+    // return a boolean for if the action results in a move and an array of squares to highlight
+    selectSquare = async (pos, player) => {
+        if(player.color != this.turn) {
+            return [false, []];
+        }
+        let colorId = player.color == 'white' ? 0 : 1;
+
         let list = [];
         // if a friendly piece is being selected
-        if(this.board[pos]?.color == this.turn && this.HIGHLIGHT_MOVES) {
+        if(this.board[pos]?.color == this.turn) {
             list = this.board[pos].getMoves(this).filter(a => this.checkLegality(pos, a));
         }
 
         // if no square is selected or the selected square is empty
-        if(this.squareSelected[player] == null || this.board[this.squareSelected[player]] == null) {
-            this.squareSelected = pos;
+        if(this.squareSelected[colorId] == null || this.board[this.squareSelected[colorId]] == null) {
+            this.squareSelected[colorId] = pos;
             return [false, list];
         }
 
         // if the move is legal
-        if(this.checkLegality(this.squareSelected[player], pos)) {
-            this.playMove(this.squareSelected[player], pos, false);
-            this.squareSelected[player] = null;
-            return [true, list];
+        if(this.checkLegality(this.squareSelected[colorId], pos)) {
+            // ask player for promotion
+            let promotion = '';
+            if(this.board[this.squareSelected[colorId]].type == 'pawn' && (Math.floor(pos / 8) == 0 || Math.floor(pos / 8) == 7)) {
+                try {
+                    let response = await askForPromotion(player);
+                    promotion = response;
+                } catch {
+                    promotion = 'queen';
+                }
+            }
+            
+            this.playMove(this.squareSelected[colorId], pos, false, promotion);
+            this.squareSelected[colorId] = null;
+            return [true, []];
         }
 
         // if the move is illegal
-        this.squareSelected[player] = pos;
-        return false;
+        this.squareSelected[colorId] = pos;
+        return [false, list];
     }
 
     getLegalMoves = (test) => {
+        this.legalMoves = [];
         let moves = [];
         for(let i = 0; i < 64; i++) {
             let piece = this.board[i];
@@ -533,9 +645,25 @@ class Game {
         
         this.possibleMoves = moves;
         if(!test) {
-            moves = moves.filter(a => this.testMove(...a));
-            moves = moves.map(a => `${a[0]}-${a[1]}`);
-            this.legalMoves = moves;
+            for(let i = 0; i < moves.length; i++) {
+                let move = moves[i];
+                if(this.board[move[0]]?.type == 'king' && Math.abs(move[0] - move[1]) == 2) {
+                    if(!this.testMove(move[0], move[0])) {
+                        continue;
+                    }
+                    if(move[1] == move[0] + 2 && !this.checkLegality(move[0], move[0] + 1)) {
+                        continue;
+                    }
+                    if(move[1] == move[0] - 2 && !this.checkLegality(move[0], move[0] - 1)) {
+                        continue;
+                    }
+                }
+                let legal = this.testMove(...move);
+                if(legal) {
+                    move = `${move[0]}-${move[1]}`;
+                    this.legalMoves.push(move);
+                }
+            }
         }
     }
 
@@ -552,7 +680,7 @@ class Game {
         this.stateHistory.push(`${JSON.stringify(this.turn)}|${JSON.stringify(this.castling)}|${JSON.stringify(this.ep)}|${this.halfmoves}|${this.move}|${JSON.stringify(this.possibleMoves)}`);
     }
 
-    playMove = (start, end, test) => {
+    playMove = (start, end, test=false, promotion='queen') => {
         // flip board if FLIP_BOARD
 
         this.logState();
@@ -569,14 +697,14 @@ class Game {
                 this.castling[3] = 0;
             }
             
-            // castling (kingside & queenside)
-            if(end == start + 2 && this.checkLegality(start, start + 1)) {
+            // castling (kingside & queenside) (FIX LATER) (No castling while in check or through check)
+            if(end == start + 2) {
                 this.board[start + 1] = this.board[start + 3];
                 this.board[start + 1].pos = start + 1;
                 this.board[start + 3] = null;
             }
-            if(end == start - 2 && this.checkLegality(start, start - 1)) {
-                this.board[start - 1] = board[start - 4];
+            if(end == start - 2) {
+                this.board[start - 1] = this.board[start - 4];
                 this.board[start - 1].pos = start - 1;
                 this.board[start - 4] = null;
             }
@@ -625,16 +753,8 @@ class Game {
 
 
             if(Math.floor(end / 8) == 0 || Math.floor(end / 8) == 7) {
-                const askForPiece = () => {
-                    let promotion = 'queen'; // prompt('What piece do you want to promote to', 'queen');
-                    if(promotion == 'knight' || promotion == 'bishop' || promotion == 'rook' || promotion == 'queen') {
-                        let newPiece = this.createPiece(promotion, piece.color, end);
-                        piece = newPiece;
-                        return;
-                    }
-                    askForPiece();
-                }
-                askForPiece();
+                let newPiece = this.createPiece(promotion, piece.color, end);
+                piece = newPiece;
             }
         }
 
@@ -654,11 +774,10 @@ class Game {
         if(!test) {
             let status = this.evaluate();
             if(status == 1) {
-                // fix lol
-                console.log(`${this.turn == 'white' ? 'black' : 'white'} wins!`);
+                this.status = this.turn == 'white' ? 2 : 1;
             }
             if(status == 2) {
-                console.log('It\'s a draw!');
+                this.status = 3;
             }
             // Board.updateBoardPieces();
         }
@@ -714,6 +833,9 @@ class Game {
         // checkmate/stalemate
         if(this.legalMoves.length == 0) {
             let kingPos = this.board.findIndex(a => a?.type == 'king' && a?.color == this.turn);
+            if(kingPos == -1) {
+                return 1;
+            }
             if(this.testMove(kingPos, kingPos)) {
                 return 2;
             }
@@ -746,5 +868,7 @@ class Game {
 }
 
 server.listen(3000, () => {
+    let x = 0;
     console.log('connected');
+    //setInterval(() => console.log(++x), 1000)
 });

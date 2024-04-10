@@ -12,8 +12,19 @@
         <input type="text" id="nameInput" name="name" autocomplete="off">
         <span id="error"></span>
         <br>
+        <span>Choose a time control:</span>
+        <button id="time-hyper">30|0</button>
+        <button id="time-bullet">1|1</button>
+        <button id="time-blitz">3|2</button>
+        <button id="time-rapid">10|5</button>
+        <button id="time-unlimited" disabled>Unlimited</button>
+        <br>
         <button id="find">Find a game</button>
         <button id="solo">Play Offline</button>
+        <br>
+        <span>Or, join a room id:</span>
+        <input type="text" autocomplete="off" id="room-code">
+        <button id="join-room">Join room</button>
         <script src="/socket.io/socket.io.js"></script>
         <script src="index.js"></script>
 

@@ -5,7 +5,7 @@ const testFEN = 'N7/8/8/8/5K1k/Q7/8/8 w - - 90 1';
 
 function main() {
     document.body.addEventListener('click', Board.clickOutside);
-    document.querySelector('#reset').addEventListener('click', () => {Game.loadPositionFromFEN(startFEN)});
+    document.querySelector('#reset').addEventListener('click', () => {Game.loadPositionFromFEN(startFEN); document.querySelector('#result').innerHTML = ''});
     document.querySelector('#flip').addEventListener('click', Board.flipBoard);
     document.querySelector('#undo').addEventListener('click', Game.unplayMove);
     

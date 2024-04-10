@@ -97,10 +97,10 @@ class Pawn extends Piece {
                 }
             }
 
-            if(board[this.pos - 9] && board[this.pos - 9].color != this.color) {
+            if(board[this.pos - 9] && board[this.pos - 9].color != this.color && this.pos % 8 != 0) {
                 moves.push(this.pos - 9);
             }
-            if(board[this.pos - 7] && board[this.pos - 7].color != this.color) {
+            if(board[this.pos - 7] && board[this.pos - 7].color != this.color && this.pos % 8 != 7) {
                 moves.push(this.pos - 7);
             }
 
@@ -120,10 +120,10 @@ class Pawn extends Piece {
                 }
             }
 
-            if(board[this.pos + 9] && board[this.pos + 9].color != this.color) {
+            if(board[this.pos + 9] && board[this.pos + 9].color != this.color && this.pos % 8 != 7) {
                 moves.push(this.pos + 9);
             }
-            if(board[this.pos + 7] && board[this.pos + 7].color != this.color) {
+            if(board[this.pos + 7] && board[this.pos + 7].color != this.color && this.pos % 8 != 0) {
                 moves.push(this.pos + 7);
             }
 

@@ -8,23 +8,24 @@
         <title>Chess</title>
     </head>
     <body>
-        <div id="menu"></div>
         <div id="everything-container">
             <div id="board-container">
                 <div id="board"></div>
             </div>
             <div id="sidebar">
-                <button id="reset">Reset Board</button>
+                <div id="you-info">
+                    <span id="you"></span>
+                    <span id="you-time"></span>
+                </div>
+                <div id="opponent-info">
+                    <span id="opponent"></span>
+                    <span id="opponent-time"></span>
+                </div>
+                <span id="result"></span>
                 <button id="flip">Flip Board</button>
-                <button id="undo">Undo Move</button>
-                <br>
-                <button id="back" onclick="window.history.back()">Go Back</button>
             </div>
         </div>
-        
-        <script src="Board.js"></script>
-        <script src="Pieces.js"></script>
-        <script src="Game.js"></script>
-        <script src="Main.js"></script>
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="online.js"></script>
     </body>
 </html>
